@@ -1,0 +1,8 @@
+{
+    "operationName": "Login",
+    "variables": {
+        "identifier": "username",
+        "password": "password"
+    },
+    "query": "mutation Login($identifier: String!, $password: String!) {\n  login(input: {identifier: $identifier, password: $password}) {\n    jwt\n    user {\n      email\n      username\n      id\n      __typename\n    }\n    __typename\n  }\n}\n"
+}

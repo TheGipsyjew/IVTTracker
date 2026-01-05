@@ -1,0 +1,25 @@
+#Ignore profile data
+profiles
+
+#Ignore output data
+output  
+
+#Ignore logs
+logs
+*.log
+
+#Ignore virtual environment
+venv
+
+#Ignore .env file
+.env
+
+#Ignore pictures
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+#Ignore errors
+error_logs
+#Ignore src/___pycache___

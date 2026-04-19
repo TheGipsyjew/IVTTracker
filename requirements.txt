@@ -1,2 +1,4 @@
 botasaurus
 python-dotenv
+openai
+requests

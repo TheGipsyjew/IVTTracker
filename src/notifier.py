@@ -57,6 +57,13 @@ def send_call_notification(post: dict, classification: dict):
         parts.append(f"📝 {rationale}")
 
     parts.append(f"Confidence: {confidence:.0%}")
+    
+    # Add images if present
+    images = post.get("images", [])
+    if images:
+        parts.append("")
+        for img_url in images[:3]:  # Limit to 3 images per message
+            parts.append(img_url)
 
     message = "\n".join(parts)
 

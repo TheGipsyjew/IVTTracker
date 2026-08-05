@@ -44,24 +44,49 @@ def run_scrape():
         import time; time.sleep(5)
 
         posts = []
-        for post in driver.select_all('.sc-embLYd'):
+        # ROBUST SELECTOR: Use ID pattern that starts with "alert-" instead of dynamic classes
+        for post in driver.select_all('div[id^="alert-"]'):
             try:
-                cat = post.select('h3').text if post.select('h3') else "Unknown"
-                content = post.select('.sc-fMfAsl').text if post.select('.sc-fMfAsl') else ""
-                author_block = post.select('.sc-kXXgDA')
-                if author_block:
-                    date_el = author_block.select('p')
-                    date = date_el.text if date_el else ""
-                    author = author_block.text.replace(date, "").strip()
-                else:
-                    author = "Unknown"
-                    date = "Unknown"
+                # Extract author - look for the first span with specific class or @ mention
+                author_el = post.select('span.sc-eJqaRI')
+                if not author_el:
+                    # Fallback: find span containing @ symbol
+                    all_spans = post.select_all('span')
+                    for span in all_spans:
+                        if '@' in span.text:
+                            author_el = span
+                            break
+                
+                author = author_el.text.strip() if author_el else "Unknown"
+                if author.startswith('@'):
+                    author = author[1:]
+                
+                # Extract date from small tag
+                date_el = post.select('small.sc-dwNYbi')
+                date = date_el.text if date_el else ""
+                
+                # Extract category/title from the title div
+                title_el = post.select('div.sc-iBNCcx')
+                cat = title_el.text if title_el else "Unknown"
+                
+                # Extract main content from the content span
+                content_el = post.select('span.sc-brSHfi')
+                content = content_el.text if content_el else ""
+                
+                # Extract images if present
+                images = []
+                img_elements = post.select_all('img.sc-bHlWFY')
+                for img in img_elements:
+                    src = img.attrs.get('src', '')
+                    if src:
+                        images.append(src)
 
                 posts.append({
                     "author": author,
                     "date": date,
                     "category": cat,
                     "content": content,
+                    "images": images,
                 })
             except Exception as e:
                 print(f"Error extracting post: {e}")

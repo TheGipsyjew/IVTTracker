@@ -25,11 +25,15 @@ def ingest_posts(posts_path: Path | None = None):
 
     count = 0
     for p in posts:
+        # Include images in hash for uniqueness
+        images_str = json.dumps(p.get("images", []), sort_keys=True)
+        content_with_images = f"{p.get('content', '')}|||{images_str}"
+        
         is_new, _ = store_post(
             p.get("author", ""),
             p.get("date", ""),
             p.get("category", ""),
-            p.get("content", ""),
+            content_with_images,
         )
         if is_new:
             count += 1

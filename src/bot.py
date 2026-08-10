@@ -64,42 +64,97 @@ def login_and_scrape(driver: Driver, data):
     print("Scraping posts...")
     posts = []
     
-    # The container class seems to be 'sc-embLYd' based on the HTML dump
-    post_elements = driver.select_all('.sc-embLYd')
+    # ROBUST SELECTOR: Use ID pattern that starts with "alert-" instead of dynamic classes
+    # This is much more stable as the ID appears to be consistent per notification
+    post_elements = driver.select_all('div[id^="alert-"]')
     
     print(f"Found {len(post_elements)} posts.")
     
     for post in post_elements:
         try:
-            # Extract category
-            category_el = post.select('h3')
-            category = category_el.text if category_el else "Unknown"
+            # Find the header container first (contains author, date, title)
+            # Based on structure: div.sc-hScZsb > div.sc-gHsaLt (header) + div.sc-iBNCcx (category) + div.sc-hlcNoQ (content wrapper)
+            # We rely on structure, not specific sc- class names for inner elements
             
-            # Extract content
-            container_el = post.select('.sc-fMfAsl')
-            content = container_el.text if container_el else "No content"
+            # Extract Author: 
+            # Strategy: Look for the first span in the header section that is NOT a date and NOT an @handle wrapper if possible
+            # Better Strategy based on HTML provided: 
+            # The header div contains: [Span: Name] [Div: Badge] [Span: @Handle] [Small: Date]
+            # Let's find all direct spans in the post, the first one is usually the Display Name
+            all_spans = post.select_all('span')
+            author = "Unknown"
             
-            # Extract Author and Date
-            author_container_el = post.select('.sc-kXXgDA')
-            if author_container_el:
-                # The text of the container includes author and date usually, 
-                # but date is in a child p tag.
-                date_el = author_container_el.select('p')
-                date = date_el.text if date_el else ""
-                
-                # Author name is the text node of the container, might need cleaning
-                # We can get all text and replace the date text
-                full_text = author_container_el.text
-                author = full_text.replace(date, "").strip()
-            else:
-                author = "Unknown"
-                date = "Unknown"
-                
+            # Robust Author Extraction:
+            # The first span in the notification block is typically the Display Name (e.g., "Xavier")
+            # We verify it doesn't look like a date or contain "@"
+            for span in all_spans:
+                text = span.text.strip()
+                if text and not text.startswith('@') and ':' not in text and len(text) < 50:
+                    # Check if this span is likely the name (usually short, no special chars)
+                    # In the provided HTML, the first span is "Xavier"
+                    author = text
+                    break
+            
+            # If the simple method failed or picked up something else, try looking for the @ handle and clean it
+            if author == "Unknown":
+                for span in all_spans:
+                    text = span.text.strip()
+                    if text.startswith('@'):
+                        author = text[1:] # Remove the @
+                        break
+            
+            # Extract Date:
+            # Strategy: Find the <small> tag. It's unique enough in this context.
+            date_el = post.select('small')
+            date = date_el.text.strip() if date_el else "Unknown"
+            
+            # Extract Category/Title:
+            # Strategy: The title is in a div immediately following the header, often containing short text.
+            # In the HTML: <div class="sc-iBNCcx">Briefing du matin</div>
+            # We look for a div with short text (< 100 chars) that isn't the content body
+            all_divs = post.select_all('div')
+            category = "Unknown"
+            for div in all_divs:
+                text = div.text.strip()
+                # Heuristic: Title is short, single line, no newlines usually
+                if text and len(text) < 100 and '\n' not in text and text != date:
+                    # Avoid picking up the content body or buttons
+                    if len(div.select_all('*')) == 0 or len(div.select_all('*')) < 5: # Simple div
+                         # Check if it's not the author name we already found
+                        if text != author and not text.startswith('@'):
+                            category = text
+                            break
+            
+            # Extract Content:
+            # Strategy: The main content is in a span with a lot of text, usually after the title
+            # It often contains newlines and is longer than the title
+            content = "No content"
+            # Re-scan spans for the longest text block that looks like a message
+            longest_text = ""
+            for span in all_spans:
+                text = span.text.strip()
+                # Content is usually long, contains newlines, or is significantly longer than title/author
+                if len(text) > len(longest_text) and len(text) > 50: 
+                    longest_text = text
+            
+            if longest_text:
+                content = longest_text
+            
+            # Extract Images:
+            # Strategy: Find all img tags where src contains 'cloudfront.net' (stable domain)
+            images = []
+            img_elements = post.select_all('img')
+            for img in img_elements:
+                src = img.attrs.get('src', '')
+                if 'cloudfront.net' in src:
+                    images.append(src)
+            
             post_data = {
                 "author": author,
                 "date": date,
                 "category": category,
-                "content": content
+                "content": content,
+                "images": images
             }
             posts.append(post_data)
             
